@@ -24,10 +24,17 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="scanqr"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Scan QR',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="qrcode" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="historique"
+        options={{
+          title: 'Historique',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="clock" color={color} />,
         }}
       />
     </Tabs>
