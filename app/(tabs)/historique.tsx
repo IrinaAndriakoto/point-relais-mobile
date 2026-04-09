@@ -9,7 +9,7 @@ export default function HistoriqueScreen() {
         Historique des transactions
       </ThemedText>
       <ThemedText>
-        Affichage de l'historique des transactions à venir...
+        Affichage de l&apos;historique des transactions à venir...
       </ThemedText>
     </ThemedView>
   );

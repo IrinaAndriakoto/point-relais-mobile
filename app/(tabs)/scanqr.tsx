@@ -4,7 +4,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   StyleSheet,
@@ -21,8 +21,18 @@ export default function ScanQRScreen() {
   const [scannedData, setScannedData] = useState<ScannedData | null>(null);
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [isScanning, setIsScanning] = useState(true);
-  const cameraRef = useRef<CameraView>(null);
+  const isMountedRef = useRef(true);
+  const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const colorScheme = useColorScheme();
+
+  // Track mounted state for safe async operations
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+    };
+  }, []);
 
   // Demander les permissions d'accès à la caméra
   useEffect(() => {
@@ -33,10 +43,11 @@ export default function ScanQRScreen() {
       }
     };
     checkAndRequest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Gérer la détection de codes QR
-  const handleBarcodeScanned = ({ data }: { data: string }) => {
+  const handleBarcodeScanned = useCallback(({ data }: { data: string }) => {
     if (isScanning) {
       setIsScanning(false);
       setScannedData({
@@ -45,27 +56,29 @@ export default function ScanQRScreen() {
       });
 
       // Affordance : vibrer et afficher une alerte
-      setTimeout(() => {
-        Alert.alert("Code QR Détecté", `Données: ${data}`, [
-          {
-            text: "Scanner à nouveau",
-            onPress: () => {
-              setScannedData(null);
-              setIsScanning(true);
+      scanTimeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          Alert.alert("Code QR Détecté", `Données: ${data}`, [
+            {
+              text: "Scanner à nouveau",
+              onPress: () => {
+                setScannedData(null);
+                setIsScanning(true);
+              },
             },
-          },
-          {
-            text: "Copier",
-            onPress: () => {
-              // Copier les données
-              console.log("Code copié:", data);
-              Alert.alert("Succès", "Code copié dans le presse-papiers");
+            {
+              text: "Copier",
+              onPress: () => {
+                // Copier les données
+                console.log("Code copié:", data);
+                Alert.alert("Succès", "Code copié dans le presse-papiers");
+              },
             },
-          },
-        ]);
+          ]);
+        }
       }, 500);
     }
-  };
+  }, [isScanning]);
 
   // Si les permissions ne sont pas accordées
   if (!permission?.granted) {
@@ -81,7 +94,7 @@ export default function ScanQRScreen() {
           Accès à la caméra requis
         </ThemedText>
         <ThemedText style={styles.description}>
-          L'application a besoin d'accéder à votre caméra pour scanner les codes
+          L&apos;application a besoin d&apos;accéder à votre caméra pour scanner les codes
           QR.
         </ThemedText>
         <TouchableOpacity
@@ -91,7 +104,7 @@ export default function ScanQRScreen() {
           ]}
           onPress={requestPermission}
         >
-          <ThemedText style={styles.buttonText}>Autoriser l'accès</ThemedText>
+          <ThemedText style={styles.buttonText}>Autoriser l&apos;accès</ThemedText>
         </TouchableOpacity>
       </ThemedView>
     );
@@ -102,7 +115,6 @@ export default function ScanQRScreen() {
       {isScanning ? (
         <>
           <CameraView
-            ref={cameraRef}
             style={styles.camera}
             facing="back"
             enableTorch={isTorchOn}

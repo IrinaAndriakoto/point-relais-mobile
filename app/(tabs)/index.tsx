@@ -1,98 +1,145 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
+  return (
+    <ThemedView style={styles.container}>
+      {/* Header */}
+      <ThemedView style={styles.header}>
+        <ThemedView>
+          <ThemedText type="title" style={styles.greeting}>
+            Point Relais
+          </ThemedText>
+          <ThemedText style={styles.subGreeting}>
+            Découvrez nos services
+          </ThemedText>
+        </ThemedView>
+        <IconSymbol
+          size={40}
+          name="person.fill"
+          color={colors.tint}
+        />
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
+
+      {/* Quick Actions */}
+      <ThemedView style={styles.actionsContainer}>
+        <ThemedText type="subtitle" style={styles.sectionTitle}>
+          Actions rapides
         </ThemedText>
+        <ThemedView style={styles.actions}>
+          <Link href="/scanqr">
+            <ThemedView style={[styles.actionCard, { backgroundColor: colors.tint + '15' }]}>
+              <IconSymbol size={32} name="qrcode" color={colors.tint} />
+              <ThemedText type="defaultSemiBold" style={styles.actionLabel}>
+                Scanner un colis
+              </ThemedText>
+            </ThemedView>
+          </Link>
+          <Link href="/historique">
+            <ThemedView style={[styles.actionCard, { backgroundColor: colors.tint + '15' }]}>
+              <IconSymbol size={32} name="clock" color={colors.tint} />
+              <ThemedText type="defaultSemiBold" style={styles.actionLabel}>
+                Historique
+              </ThemedText>
+            </ThemedView>
+          </Link>
+        </ThemedView>
       </ThemedView>
-    </ParallaxScrollView>
+
+      {/* Info Section */}
+      <ThemedView style={styles.infoContainer}>
+        <ThemedText type="subtitle" style={styles.sectionTitle}>
+          À venir
+        </ThemedText>
+        <ThemedView style={[styles.infoCard, { borderColor: colors.tint + '30' }]}>
+          <IconSymbol size={24} name="shippingbox.fill" color={colors.tint} />
+          <ThemedView style={styles.infoText}>
+            <ThemedText type="defaultSemiBold">Suivi des colis</ThemedText>
+            <ThemedText style={styles.infoDescription}>
+              Visualisez tous vos colis en cours de livraison
+            </ThemedText>
+          </ThemedView>
+        </ThemedView>
+        <ThemedView style={[styles.infoCard, { borderColor: colors.tint + '30' }]}>
+          <IconSymbol size={24} name="bell.fill" color={colors.tint} />
+          <ThemedView style={styles.infoText}>
+            <ThemedText type="defaultSemiBold">Notifications</ThemedText>
+            <ThemedText style={styles.infoDescription}>
+              Recevez des alertes quand un colis arrive
+            </ThemedText>
+          </ThemedView>
+        </ThemedView>
+      </ThemedView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    paddingTop: 60,
+    paddingHorizontal: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  greeting: {
+    marginBottom: 4,
+  },
+  subGreeting: {
+    fontSize: 16,
+    opacity: 0.7,
+  },
+  sectionTitle: {
+    marginBottom: 16,
+  },
+  actionsContainer: {
+    marginBottom: 32,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionCard: {
+    flex: 1,
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    gap: 12,
+  },
+  actionLabel: {
+    textAlign: 'center',
+    fontSize: 14,
+  },
+  infoContainer: {
+    gap: 12,
+  },
+  infoCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  infoText: {
+    flex: 1,
+    gap: 4,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  infoDescription: {
+    fontSize: 14,
+    opacity: 0.7,
   },
 });

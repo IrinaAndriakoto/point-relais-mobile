@@ -10,13 +10,20 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
 
-SplashScreen.preventAutoHideAsync();
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
+    async function prepare() {
+      try {
+        await SplashScreen.preventAutoHideAsync();
+      } catch {
+        // Splash may already be hidden
+      }
+    }
+    prepare();
+
     // Afficher le splash screen pendant 3 secondes
     const timer = setTimeout(() => {
       setAppReady(true);
@@ -30,7 +37,7 @@ export default function RootLayout() {
     return (
       <View style={styles.splashContainer}>
         <Image
-          source={require("../assets/splash_screen.png")}
+          source={require("@/assets/splash_screen.png")}
           style={styles.splashImage}
           resizeMode="contain"
         />
