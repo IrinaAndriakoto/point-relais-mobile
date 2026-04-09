@@ -26,10 +26,14 @@ export default function ScanQRScreen() {
 
   // Demander les permissions d'accès à la caméra
   useEffect(() => {
-    if (!permission?.granted) {
-      requestPermission();
-    }
-  }, [permission]);
+    const checkAndRequest = async () => {
+      if (!permission?.granted) {
+        const result = await requestPermission();
+        if (!result.granted) console.warn("Permission refusée");
+      }
+    };
+    checkAndRequest();
+  }, []);
 
   // Gérer la détection de codes QR
   const handleBarcodeScanned = ({ data }: { data: string }) => {
@@ -199,6 +203,7 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
     width: "100%",
+     height: "100%",
   },
   overlay: {
     flex: 1,
@@ -263,7 +268,7 @@ const styles = StyleSheet.create({
   resultData: {
     fontSize: 16,
     fontFamily: "monospace",
-    wordBreak: "break-all",
+    flexWrap: "wrap",
   },
   buttonContainer: {
     width: "100%",
