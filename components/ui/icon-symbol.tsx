@@ -24,6 +24,7 @@ const MAPPING = {
   'flashlight.on.fill': 'flash-on',
   'flashlight.off.fill': 'flash-off',
   'checkmark.circle.fill': 'check-circle',
+  'xmark.circle.fill': 'cancel',
   'person.fill': 'person',
   'package.fill': 'inventory-2',
   'bell.fill': 'notifications',
