@@ -91,11 +91,24 @@ export async function livrer(
   // - Sur iOS Simulator: localhost
   // - Sur téléphone physique: IP du PC (ex: 192.168.x.x)
   // - Variable d'environnement: process.env.EXPO_PUBLIC_API_URL
-  let API_URL = process.env.EXPO_PUBLIC_API_URL;
+  const API_URL = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
+
+  if (!API_URL) {
+    throw new Error(
+      "EXPO_PUBLIC_API_URL est absente du build. Verifiez la configuration EAS/.env.",
+    );
+  }
 
   const endpoint = `${API_URL}/${idInterne}/livrerQRCode?status=${status}`;
 
   try {
+    console.log("[livrer] Requete backend:", {
+      apiUrl: API_URL,
+      endpoint,
+      idInterne,
+      status,
+    });
+
     const res = await fetch(endpoint, {
       method: "PUT",
       headers: {
