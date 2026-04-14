@@ -3,7 +3,7 @@ import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { decryptQRContent, livrer, verifyId } from "@/lib/crypto";
+import { decryptQRContent, livrer } from "@/lib/crypto";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -21,8 +21,6 @@ type ScanResult =
   | { status: "decrypting" }
   | { status: "decrypt_error"; error: string }
   | { status: "decrypt_success"; decryptedId: string }
-  | { status: "verifying"; decryptedId: string }
-  | { status: "not_found"; decryptedId: string }
   | { status: "confirming"; decryptedId: string }
   | { status: "delivering"; decryptedId: string }
   | { status: "delivered"; decryptedId: string };
@@ -87,17 +85,8 @@ export default function ScanQRScreen() {
       });
       if (!isMountedRef.current) return;
 
-      // ── Étape 3 : Vérification en base ──
-      setResult({ status: "verifying", decryptedId });
-      const exists = await verifyId(decryptedId);
-      if (!isMountedRef.current) return;
-
-      if (!exists) {
-        // On passe decryptedId → affiché dans l'overlay not_found
-        setResult({ status: "not_found", decryptedId });
-        return;
-      }
-
+      // ── Étape 3 : Aller directement à la confirmation ──
+      // La vérification sera faite par le backend lors de la livraison
       setResult({ status: "confirming", decryptedId });
     },
     [isScanning],
@@ -111,13 +100,15 @@ export default function ScanQRScreen() {
     >;
 
     setResult({ status: "delivering", decryptedId });
-    const success = await livrer(decryptedId);
-    if (!isMountedRef.current) return;
 
-    if (success) {
+    try {
+      await livrer(decryptedId, "remis");
+      if (!isMountedRef.current) return;
       setResult({ status: "delivered", decryptedId });
-    } else {
-      Alert.alert("Erreur", "Impossible de changer le statut du colis.");
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      const msg = err instanceof Error ? err.message : "Erreur inconnue";
+      Alert.alert("Erreur de livraison", msg);
       resetScan();
     }
   }, [result, resetScan]);
@@ -194,23 +185,6 @@ export default function ScanQRScreen() {
           </View>
         );
 
-      case "verifying":
-        return (
-          <View style={styles.overlayContent}>
-            {/* On garde le message déchiffré visible pendant la vérif */}
-            <ActivityIndicator size="large" color={colors.tint} />
-            <ThemedText style={styles.overlayText}>
-              Vérification en base...
-            </ThemedText>
-            <View style={styles.decryptedBox}>
-              <ThemedText style={styles.decryptedLabel}>ID VÉRIFIÉ</ThemedText>
-              <ThemedText style={styles.decryptedValue}>
-                {result.decryptedId}
-              </ThemedText>
-            </View>
-          </View>
-        );
-
       case "decrypt_error":
         return (
           <View style={styles.overlayContent}>
@@ -229,38 +203,6 @@ export default function ScanQRScreen() {
             </TouchableOpacity>
           </View>
         );
-
-      case "not_found":
-        return (
-          <View style={styles.overlayContent}>
-            <IconSymbol size={60} name="xmark.circle.fill" color="#e74c3c" />
-            <ThemedText style={styles.overlayTitle}>
-              Colis non trouvé
-            </ThemedText>
-            {/* ← message déchiffré affiché ici, pas le contenu brut */}
-            <View style={styles.decryptedBox}>
-              <ThemedText style={styles.decryptedLabel}>
-                ID DÉCHIFFRÉ
-              </ThemedText>
-              <ThemedText style={styles.decryptedValue}>
-                {
-                  (result as Extract<ScanResult, { decryptedId: string }>)
-                    .decryptedId
-                }
-              </ThemedText>
-            </View>
-            <ThemedText style={styles.overlayDescription}>
-              Cet identifiant n&apos;existe pas dans la base de données.
-            </ThemedText>
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: colors.tint }]}
-              onPress={resetScan}
-            >
-              <ThemedText style={styles.buttonText}>Réessayer</ThemedText>
-            </TouchableOpacity>
-          </View>
-        );
-
       default:
         return null;
     }
@@ -303,7 +245,7 @@ export default function ScanQRScreen() {
       {result.status === "idle" && (
         <View style={styles.instructionsContainer}>
           <ThemedText type="subtitle" style={styles.instructionsTitle}>
-            📍 Scanner un code QR
+            Scanner un code QR
           </ThemedText>
           <ThemedText style={styles.instructionsText}>
             Pointez votre caméra vers un code QR pour le scanner
@@ -335,7 +277,7 @@ export default function ScanQRScreen() {
               color={colors.tint}
             />
             <ThemedText type="title" style={styles.modalTitle}>
-              Colis identifié
+              Recu identifié
             </ThemedText>
             <View style={styles.decryptedBoxModal}>
               <ThemedText style={styles.decryptedLabelModal}>
@@ -346,7 +288,7 @@ export default function ScanQRScreen() {
               </ThemedText>
             </View>
             <ThemedText style={styles.modalQuestion}>
-              Confirmer la livraison de ce colis ?
+              Confirmer la livraison de cette attestation ?
             </ThemedText>
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -400,17 +342,17 @@ export default function ScanQRScreen() {
               color="#27ae60"
             />
             <ThemedText type="title" style={styles.modalTitle}>
-              Colis livré !
+              Attestation livrée !
             </ThemedText>
             <ThemedText style={styles.modalDescription}>
-              Le statut du colis a été mis à jour avec succès.
+              Le statut de la transaction a été mis à jour avec succès.
             </ThemedText>
             <TouchableOpacity
               style={[styles.modalButton, { backgroundColor: colors.tint }]}
               onPress={resetScan}
             >
               <ThemedText style={styles.modalButtonText}>
-                Scanner un autre colis
+                Scanner un autre recu
               </ThemedText>
             </TouchableOpacity>
           </ThemedView>
