@@ -3,7 +3,7 @@ import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { decryptQRContent, livrer } from "@/lib/crypto";
+import { decryptQRContent, livrerEtHistoriser } from "@/lib/crypto";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -102,9 +102,15 @@ export default function ScanQRScreen() {
     setResult({ status: "delivering", decryptedId });
 
     try {
-      await livrer(decryptedId, "remis");
+      const { historyCreated } = await livrerEtHistoriser(decryptedId, "remis");
       if (!isMountedRef.current) return;
       setResult({ status: "delivered", decryptedId });
+      if (!historyCreated) {
+        Alert.alert(
+          "Livraison enregistree",
+          "La livraison a reussi, mais l'historique n'a pas pu etre cree sur le serveur.",
+        );
+      }
     } catch (err) {
       if (!isMountedRef.current) return;
       const msg = err instanceof Error ? err.message : "Erreur inconnue";

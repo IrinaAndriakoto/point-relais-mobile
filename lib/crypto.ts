@@ -1,5 +1,6 @@
 import CryptoJS from "crypto-js";
 import "react-native-get-random-values";
+import { createTransactionHistory } from "@/lib/transaction-history";
 
 // ═══════════════════════════════════════════════════════
 // Clé de chiffrement — à adapter selon ton backend
@@ -133,5 +134,29 @@ export async function livrer(
       errorFull: error,
     });
     throw new Error(`Impossible de livrer : ${message}`);
+  }
+}
+
+export async function livrerEtHistoriser(
+  decryptedId: string,
+  status: string = "remis",
+): Promise<{ historyCreated: boolean }> {
+  const idInterne = extractIdInterne(decryptedId);
+
+  await livrer(decryptedId, status);
+
+  try {
+    await createTransactionHistory(idInterne, status);
+    return { historyCreated: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erreur inconnue";
+    console.error("[historique] Creation echouee:", {
+      idInterne,
+      status,
+      message,
+      errorFull: error,
+    });
+
+    return { historyCreated: false };
   }
 }
