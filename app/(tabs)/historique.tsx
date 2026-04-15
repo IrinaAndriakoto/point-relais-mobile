@@ -77,10 +77,10 @@ export default function HistoriqueScreen() {
       return (
         <View style={styles.centerContent}>
           <ThemedText type="subtitle" style={styles.centerTitle}>
-            Aucun scan historise
+            Aucun scan historisé
           </ThemedText>
           <ThemedText style={styles.helperText}>
-            Les transactions livrees dans cette session apparaitront ici.
+            Les transactions livrées apparaitront ici.
           </ThemedText>
         </View>
       );
@@ -121,8 +121,7 @@ export default function HistoriqueScreen() {
             Historique de scans
           </ThemedText>
           <ThemedText style={styles.subtitle}>
-            Les lignes creees apres une livraison reussie sont rechargees depuis
-            le backend.
+            Les scans de transactions livrés sont historisés ici pour vous permettre de suivre vos activités récentes.
           </ThemedText>
           {renderContent()}
         </ThemedView>

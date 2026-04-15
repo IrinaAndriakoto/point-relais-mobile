@@ -5,26 +5,41 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { Stack } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  ImageBackground,
+  StyleSheet,
+  View,
+} from "react-native";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [appReady, setAppReady] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     async function prepare() {
       try {
         await SplashScreen.preventAutoHideAsync();
+
+        // Check if user is logged in
+        try {
+          const token = await SecureStore.getItemAsync("cashpoint_auth");
+          setIsLoggedIn(!!token);
+        } catch {
+          setIsLoggedIn(false);
+        }
       } catch {
         // Splash may already be hidden
       }
     }
     prepare();
 
-    // Afficher le splash screen pendant 3 secondes
+    // Afficher le splash screen pendant 2 secondes
     const timer = setTimeout(() => {
       setAppReady(true);
       SplashScreen.hideAsync();
@@ -35,24 +50,25 @@ export default function RootLayout() {
 
   if (!appReady) {
     return (
-      <View style={styles.splashContainer}>
-        <Image
-          source={require("@/assets/splash_screen.png")}
-          style={styles.splashImage}
-          resizeMode="contain"
-        />
-      </View>
+      <ImageBackground
+        source={require("@/assets/splash_screen.png")}
+        style={styles.splashContainer}
+        resizeMode="cover"
+      >
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#0b2f5c" />
+        </View>
+      </ImageBackground>
     );
   }
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="modal"
-          options={{ presentation: "modal", title: "Modal" }}
-        />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
@@ -61,18 +77,14 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   splashContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
+    width: "100%",
+    height: "100%",
+  },
+  loadingOverlay: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
-  },
-  splashImage: {
-    width: 250,
-    height: 250,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
 });
