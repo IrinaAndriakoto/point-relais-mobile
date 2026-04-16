@@ -68,8 +68,24 @@ export async function createTransactionHistory(
   });
 
   if (!response.ok) {
-    const errorMsg = await response.text();
-    throw new Error(`Erreur historique (${response.status}): ${errorMsg}`);
+    const errorText = await response.text();
+
+    console.error("[historique] ERREUR BACKEND:", {
+      status: response.status,
+      endpoint,
+      body: {
+        idTransaction,
+        status,
+      },
+      response: errorText,
+    });
+
+    throw new Error(
+      `Historique échoué\n\n` +
+      `Status: ${response.status}\n` +
+      `Response: ${errorText}\n` +
+      `Endpoint: ${endpoint}`
+    );
   }
 
   const created = (await response.json()) as TransactionHistoryEntry;

@@ -119,14 +119,16 @@
         >
           <ThemedView style={styles.modalOverlay}>
             <ThemedView style={styles.modalContent}>
-              <ThemedText type="title" style={styles.modalTitle}>
+              {/* <ThemedText type="title" style={styles.modalTitle}>
                 Profil
-              </ThemedText>
+              </ThemedText> */}
 
               {/* Information Section */}
               <TouchableOpacity style={styles.menuItem}>
-                <IconSymbol size={24} name="info.circle" color={colors.tint} />
-                <ThemedText style={styles.menuItemText}>Informations</ThemedText>
+                  <IconSymbol size={24} name="info.circle" color={colors.tint} />
+                <Link href="/infos">
+                  <ThemedText style={styles.menuItemText}>Informations</ThemedText>
+                </Link>
               </TouchableOpacity>
 
               {/* Logout Section */}

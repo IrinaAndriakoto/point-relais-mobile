@@ -113,8 +113,16 @@ export default function ScanQRScreen() {
       }
     } catch (err) {
       if (!isMountedRef.current) return;
-      const msg = err instanceof Error ? err.message : "Erreur inconnue";
-      Alert.alert("Erreur de livraison", msg);
+
+      const msg = err instanceof Error ? err.message : JSON.stringify(err);
+
+      console.error("ERREUR COMPLETE:", err);
+
+      Alert.alert(
+        "Erreur de livraison",
+        msg // 👉 maintenant tu verras tout
+      );
+
       resetScan();
     }
   }, [result, resetScan]);

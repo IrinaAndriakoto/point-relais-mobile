@@ -64,7 +64,7 @@ export default function LoginScreen() {
             <Text style={styles.label}>Numéro de Cashpoint</Text>
             <TextInput
               style={styles.input}
-              placeholder="0380885149"
+              placeholder="Entrez votre numéro"
               value={numero}
               onChangeText={setNumero}
               editable={!loading}

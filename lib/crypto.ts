@@ -126,15 +126,31 @@ export async function livrer(
     const data = await res.json();
     console.log("[livrer] Succès:", data);
     return true;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Erreur inconnue";
-    console.error("[livrer] Erreur complète:", {
-      message,
-      endpoint,
-      errorFull: error,
-    });
-    throw new Error(`Impossible de livrer : ${message}`);
-  }
+  } catch (error: any) {
+      let detailedMessage = "Erreur inconnue";
+
+      if (error instanceof Error) {
+        detailedMessage = error.message;
+      }
+
+      // Ajout d'infos utiles
+      const debugInfo = {
+        message: detailedMessage,
+        endpoint,
+        apiUrl: API_URL,
+        idInterne,
+        status,
+      };
+
+      console.error("[livrer] ERREUR DETAILLEE:", debugInfo);
+
+      throw new Error(
+        `Livraison échouée\n\n` +
+        `Message: ${detailedMessage}\n` +
+        `Endpoint: ${endpoint}\n` +
+        `API_URL: ${API_URL}`
+      );
+    }
 }
 
 export async function livrerEtHistoriser(
