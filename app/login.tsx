@@ -1,16 +1,31 @@
 import { loginCashpoint } from "@/lib/auth-api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useState } from "react";
 import {
-    ActivityIndicator,
-    ImageBackground,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ImageBackground, Platform, StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
+
+const storeAuthData = async (data: any) => {
+  try {
+    if (Platform.OS === "web") {
+      // Sur le web, utiliser AsyncStorage
+      await AsyncStorage.setItem("cashpoint_auth", JSON.stringify(data));
+    } else {
+      // Sur iOS/Android, utiliser SecureStore
+      await SecureStore.setItemAsync("cashpoint_auth", JSON.stringify(data));
+    }
+  } catch (error) {
+    console.error("Erreur lors du stockage des données:", error);
+    throw error;
+  }
+};
 
 export default function LoginScreen() {
   const [numero, setNumero] = useState("");
@@ -33,10 +48,7 @@ export default function LoginScreen() {
 
       if (result.success && result.cashpoint) {
         // Store the cashpoint data
-        await SecureStore.setItemAsync(
-          "cashpoint_auth",
-          JSON.stringify(result.cashpoint),
-        );
+        await storeAuthData(result.cashpoint);
 
         // Navigate to home
         router.replace("/(tabs)");
