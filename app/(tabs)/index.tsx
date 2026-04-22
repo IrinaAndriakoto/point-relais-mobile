@@ -1,29 +1,88 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import * as SecureStore from "expo-secure-store";
-import { useState } from "react";
-import { Modal, Platform, StyleSheet, TouchableOpacity } from "react-native";
-
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { Link } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+import { Link, useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
+
+const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
+const IN_DELIVERY_ENDPOINT = `${apiUrl}/getInDelivery`;
+
+type InDeliveryTransaction = {
+  id?: string | number;
+  idInterne?: string;
+  status?: string;
+  nom?: string;
+  numero?: string;
+  [key: string]: unknown;
+};
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
   const router = useRouter();
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [transactions, setTransactions] = useState<InDeliveryTransaction[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
+  const [transactionsError, setTransactionsError] = useState<string | null>(
+    null,
+  );
+
+  const loadTransactions = useCallback(async () => {
+    setIsLoadingTransactions(true);
+
+    try {
+      const response = await fetch(IN_DELIVERY_ENDPOINT, {
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Chargement impossible (${response.status}): ${errorText}`,
+        );
+      }
+
+      const data = await response.json();
+      const normalized = Array.isArray(data) ? data : [];
+      setTransactions(normalized as InDeliveryTransaction[]);
+      setTransactionsError(null);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erreur inconnue";
+      setTransactionsError(message);
+      setTransactions([]);
+    } finally {
+      setIsLoadingTransactions(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadTransactions();
+    }, [loadTransactions]),
+  );
 
   const handleLogout = async () => {
     try {
       if (Platform.OS === "web") {
-        // Sur le web, utiliser AsyncStorage
         await AsyncStorage.removeItem("cashpoint_auth");
       } else {
-        // Sur iOS/Android, utiliser SecureStore
         await SecureStore.deleteItemAsync("cashpoint_auth");
       }
       setShowProfileModal(false);
@@ -33,147 +92,223 @@ export default function HomeScreen() {
     }
   };
 
+  const renderTransactionsTable = () => {
+    if (isLoadingTransactions) {
+      return (
+        <View style={styles.tableState}>
+          <ActivityIndicator size="small" color={colors.tint} />
+          <ThemedText style={styles.tableStateText}>
+            Chargement des transactions...
+          </ThemedText>
+        </View>
+      );
+    }
+
+    if (transactionsError) {
+      console.error(
+        "[accueil] Erreur lors du chargement des transactions:",
+        transactionsError,
+      );
+      return (
+        <View style={styles.tableState}>
+          <ThemedText type="defaultSemiBold" style={styles.errorText}>
+            Impossible de charger la liste
+          </ThemedText>
+          <ThemedText style={styles.tableStateText}>
+            {transactionsError}
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.retryButton, { backgroundColor: colors.tint }]}
+            onPress={loadTransactions}
+          >
+            <ThemedText style={styles.retryButtonText}>Reessayer</ThemedText>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (transactions.length === 0) {
+      return (
+        <View style={styles.tableState}>
+          <ThemedText style={styles.tableStateText}>
+            Aucune transaction en cours de livraison.
+          </ThemedText>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.table}>
+          <View
+            style={[
+              styles.tableRow,
+              styles.tableHeader,
+              { borderBottomColor: colors.tint + "30" },
+            ]}
+          >
+            <ThemedText type="defaultSemiBold" style={styles.idColumn}>
+              ID Interne
+            </ThemedText>
+            <ThemedText type="defaultSemiBold" style={styles.nameColumn}>
+              Nom
+            </ThemedText>
+            <ThemedText type="defaultSemiBold" style={styles.phoneColumn}>
+              Numero
+            </ThemedText>
+            <ThemedText type="defaultSemiBold" style={styles.statusColumn}>
+              Statut
+            </ThemedText>
+          </View>
+
+          {transactions.map((transaction, index) => (
+            <View
+              key={String(
+                transaction.idInterne ?? transaction.id ?? `row-${index}`,
+              )}
+              style={[
+                styles.tableRow,
+                { borderBottomColor: colors.tint + "15" },
+              ]}
+            >
+              <ThemedText style={styles.idColumn}>
+                {String(transaction.idInterne ?? transaction.id ?? "-")}
+              </ThemedText>
+              <ThemedText style={styles.nameColumn}>
+                {String(transaction.nom ?? "-")}
+              </ThemedText>
+              <ThemedText style={styles.phoneColumn}>
+                {String(transaction.numero ?? "-")}
+              </ThemedText>
+              <ThemedText style={styles.statusColumn}>
+                {String(transaction.status ?? "-")}
+              </ThemedText>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    );
+  };
+
   return (
-    <ThemedView style={styles.container}>
-      {/* Header */}
-      <ThemedView style={styles.header}>
-        <ThemedView>
-          <ThemedText type="title" style={styles.greeting}>
-            Point Relais
-          </ThemedText>
-          <ThemedText style={styles.subGreeting}>
-            Découvrez nos services
-          </ThemedText>
-        </ThemedView>
-        <TouchableOpacity
-          onPress={() => setShowProfileModal(true)}
-          style={styles.profileButton}
-        >
-          <IconSymbol size={28} name="person.fill" color={colors.tint} />
-        </TouchableOpacity>
-      </ThemedView>
-
-      {/* Quick Actions */}
-      <ThemedView style={styles.actionsContainer}>
-        <ThemedText type="subtitle" style={styles.sectionTitle}>
-          Actions rapides
-        </ThemedText>
-        <ThemedView style={styles.actions}>
-          <Link href="/scanqr">
-            <ThemedView
-              style={[
-                styles.actionCard,
-                { backgroundColor: colors.tint + "15" },
-              ]}
-            >
-              <IconSymbol size={32} name="qrcode" color={colors.tint} />
-              <ThemedText type="defaultSemiBold" style={styles.actionLabel}>
-                Scanner un colis
-              </ThemedText>
-            </ThemedView>
-          </Link>
-          <Link href="/historique">
-            <ThemedView
-              style={[
-                styles.actionCard,
-                { backgroundColor: colors.tint + "15" },
-              ]}
-            >
-              <IconSymbol size={32} name="clock" color={colors.tint} />
-              <ThemedText type="defaultSemiBold" style={styles.actionLabel}>
-                Historique
-              </ThemedText>
-            </ThemedView>
-          </Link>
-        </ThemedView>
-      </ThemedView>
-
-      {/* Info Section */}
-      <ThemedView style={styles.infoContainer}>
-        <ThemedText type="subtitle" style={styles.sectionTitle}>
-          À venir
-        </ThemedText>
-        <ThemedView
-          style={[styles.infoCard, { borderColor: colors.tint + "30" }]}
-        >
-          <IconSymbol size={24} name="shippingbox.fill" color={colors.tint} />
-          <ThemedView style={styles.infoText}>
-            <ThemedText type="defaultSemiBold">Suivi des colis</ThemedText>
-            <ThemedText style={styles.infoDescription}>
-              Visualisez tous vos colis en cours de livraison
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ThemedView style={styles.container}>
+        <ThemedView style={styles.header}>
+          <ThemedView>
+            <ThemedText type="title" style={styles.greeting}>
+              Point Relais
+            </ThemedText>
+            <ThemedText style={styles.subGreeting}>
+              Decouvrez nos services
             </ThemedText>
           </ThemedView>
+          <TouchableOpacity
+            onPress={() => setShowProfileModal(true)}
+            style={styles.profileButton}
+          >
+            <IconSymbol size={28} name="person.fill" color={colors.tint} />
+          </TouchableOpacity>
         </ThemedView>
-        <ThemedView
-          style={[styles.infoCard, { borderColor: colors.tint + "30" }]}
-        >
-          <IconSymbol size={24} name="bell.fill" color={colors.tint} />
-          <ThemedView style={styles.infoText}>
-            <ThemedText type="defaultSemiBold">Notifications</ThemedText>
-            <ThemedText style={styles.infoDescription}>
-              Recevez des alertes quand un colis arrive
-            </ThemedText>
-          </ThemedView>
-        </ThemedView>
-      </ThemedView>
 
-      {/* Profile Modal */}
-      <Modal
-        visible={showProfileModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowProfileModal(false)}
-      >
-        <ThemedView style={styles.modalOverlay}>
-          <ThemedView style={styles.modalContent}>
-            {/* <ThemedText type="title" style={styles.modalTitle}>
-                Profil
-              </ThemedText> */}
-
-            {/* Information Section */}
-            <TouchableOpacity style={styles.menuItem}>
-              <IconSymbol size={24} name="info.circle" color={colors.tint} />
-              <Link href="/infos">
-                <ThemedText style={styles.menuItemText}>
-                  Informations
+        <ThemedView style={styles.actionsContainer}>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Actions rapides
+          </ThemedText>
+          <ThemedView style={styles.actions}>
+            <Link href="/scanqr">
+              <ThemedView
+                style={[
+                  styles.actionCard,
+                  { backgroundColor: colors.tint + "15" },
+                ]}
+              >
+                <IconSymbol size={32} name="qrcode" color={colors.tint} />
+                <ThemedText type="defaultSemiBold" style={styles.actionLabel}>
+                  Scanner un colis
                 </ThemedText>
-              </Link>
-            </TouchableOpacity>
-
-            {/* Logout Section */}
-            <TouchableOpacity
-              style={[styles.menuItem, styles.logoutItem]}
-              onPress={handleLogout}
-            >
-              <IconSymbol
-                size={24}
-                name="door.left.hand.open"
-                color="#d32f2f"
-              />
-              <ThemedText style={[styles.menuItemText, styles.logoutText]}>
-                Se déconnecter
-              </ThemedText>
-            </TouchableOpacity>
-
-            {/* Close Button */}
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowProfileModal(false)}
-            >
-              <ThemedText style={styles.closeButtonText}>Fermer</ThemedText>
-            </TouchableOpacity>
+              </ThemedView>
+            </Link>
+            <Link href="/historique">
+              <ThemedView
+                style={[
+                  styles.actionCard,
+                  { backgroundColor: colors.tint + "15" },
+                ]}
+              >
+                <IconSymbol size={32} name="clock" color={colors.tint} />
+                <ThemedText type="defaultSemiBold" style={styles.actionLabel}>
+                  Historique
+                </ThemedText>
+              </ThemedView>
+            </Link>
           </ThemedView>
         </ThemedView>
-      </Modal>
-    </ThemedView>
+
+        <ThemedView style={styles.infoContainer}>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Liste des transactions en cours de livraison
+          </ThemedText>
+          <ThemedView
+            style={[styles.tableContainer, { borderColor: colors.tint + "20" }]}
+          >
+            {renderTransactionsTable()}
+          </ThemedView>
+        </ThemedView>
+
+        <Modal
+          visible={showProfileModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowProfileModal(false)}
+        >
+          <ThemedView style={styles.modalOverlay}>
+            <ThemedView style={styles.modalContent}>
+              <TouchableOpacity style={styles.menuItem}>
+                <IconSymbol size={24} name="info.circle" color={colors.tint} />
+                <Link href="/infos">
+                  <ThemedText style={styles.menuItemText}>
+                    Informations
+                  </ThemedText>
+                </Link>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuItem, styles.logoutItem]}
+                onPress={handleLogout}
+              >
+                <IconSymbol
+                  size={24}
+                  name="door.left.hand.open"
+                  color="#d32f2f"
+                />
+                <ThemedText style={[styles.menuItemText, styles.logoutText]}>
+                  Se deconnecter
+                </ThemedText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowProfileModal(false)}
+              >
+                <ThemedText style={styles.closeButtonText}>Fermer</ThemedText>
+              </TouchableOpacity>
+            </ThemedView>
+          </ThemedView>
+        </Modal>
+      </ThemedView>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollContent: {
+    flexGrow: 1,
+  },
   container: {
     flex: 1,
     paddingTop: 60,
     paddingHorizontal: 20,
+    paddingBottom: 32,
   },
   header: {
     flexDirection: "row",
@@ -215,26 +350,57 @@ const styles = StyleSheet.create({
   infoContainer: {
     gap: 12,
   },
-  infoCard: {
+  tableContainer: {
+    borderWidth: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  table: {
+    minWidth: 720,
+  },
+  tableHeader: {
+    backgroundColor: "rgba(59,130,246,0.08)",
+  },
+  tableRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  idColumn: {
+    width: 140,
+  },
+  nameColumn: {
+    width: 220,
+  },
+  phoneColumn: {
+    width: 160,
+  },
+  statusColumn: {
+    width: 160,
+  },
+  tableState: {
+    padding: 20,
+    alignItems: "center",
     gap: 12,
   },
-  infoText: {
-    flex: 1,
-    gap: 4,
-  },
-  infoDescription: {
-    fontSize: 14,
+  tableStateText: {
+    textAlign: "center",
     opacity: 0.7,
   },
-  logoutButton: {
-    padding: 8,
+  errorText: {
+    textAlign: "center",
   },
-  // Modal styles
+  retryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -247,10 +413,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     gap: 12,
     maxHeight: "50%",
-  },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: "center",
   },
   menuItem: {
     flexDirection: "row",
