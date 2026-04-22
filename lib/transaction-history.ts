@@ -2,7 +2,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-const trackedTransactionIds = new Set<string>();
 const AUTH_STORAGE_KEY = "cashpoint_auth";
 
 type StoredCashpointAuth = {
@@ -81,20 +80,14 @@ export async function getConnectedCashpointSignature(): Promise<string | null> {
   return normalized || null;
 }
 
-export function trackTransaction(idInterne: string) {
-  trackedTransactionIds.add(normalizeIdInterne(idInterne));
-}
-
-export function getTrackedTransactionIds(): string[] {
-  return Array.from(trackedTransactionIds.values());
-}
-
 export async function createTransactionHistory(
   payload: CreateTransactionHistoryPayload,
 ): Promise<TransactionHistoryEntry> {
   const idInterne = normalizeIdInterne(payload.idInterne);
   const updatedBy = (
-    payload.updatedBy ?? (await getConnectedCashpointSignature()) ?? ""
+    payload.updatedBy ??
+    (await getConnectedCashpointSignature()) ??
+    ""
   ).trim();
 
   if (!updatedBy) {
@@ -135,18 +128,33 @@ export async function createTransactionHistory(
     );
   }
 
-  const created = (await response.json()) as TransactionHistoryEntry;
-  trackTransaction(idInterne);
-  return created;
+  const rawData =
+    (await response.json()) as Partial<TransactionHistoryEntry> & {
+      updated_by?: string;
+    };
+
+  // Normalize snake_case fields from backend to camelCase
+  return {
+    ...rawData,
+    updatedBy: rawData.updated_by || rawData.updatedBy,
+  } as TransactionHistoryEntry;
 }
 
-export async function fetchHistoryByTransaction(
-  idInterne: string,
+export async function fetchHistoryByUser(
+  signatureCashpoint: string,
 ): Promise<TransactionHistoryEntry[]> {
-  const normalizedId = normalizeIdInterne(idInterne);
-  const endpoint = `${getApiOrigin()}/api/transaction-history/${encodeURIComponent(
-    normalizedId,
+  const normalizedSignature = signatureCashpoint.trim();
+
+  if (!normalizedSignature) {
+    throw new Error("signatureCashpoint invalide: la valeur est vide.");
+  }
+
+  const endpoint = `${getApiOrigin()}/api/transaction-history/historyByUser/${encodeURIComponent(
+    normalizedSignature,
   )}`;
+
+  // console.log(`[historique] Fetching history for user: ${normalizedSignature}`);
+  // console.log(`[historique] Endpoint: ${endpoint}`);
 
   const response = await fetch(endpoint, {
     headers: {
@@ -161,27 +169,38 @@ export async function fetchHistoryByTransaction(
     );
   }
 
-  return (await response.json()) as TransactionHistoryEntry[];
+  const rawData = (await response.json()) as Array<
+    Partial<TransactionHistoryEntry> & { updated_by?: string }
+  >;
+
+  // Normalize snake_case fields from backend to camelCase
+  return rawData.map(
+    (entry) =>
+      ({
+        ...entry,
+        updatedBy: entry.updated_by || entry.updatedBy,
+      }) as TransactionHistoryEntry,
+  );
 }
 
-export async function fetchTrackedTransactionsHistory(): Promise<
+export async function fetchCashpointHistory(): Promise<
   TransactionHistoryEntry[]
 > {
-  const trackedIds = getTrackedTransactionIds();
   const connectedSignature = await getConnectedCashpointSignature();
 
-  if (trackedIds.length === 0 || !connectedSignature) {
+  if (!connectedSignature) {
     return [];
   }
 
-  const histories = await Promise.all(
-    trackedIds.map((idInterne) => fetchHistoryByTransaction(idInterne)),
-  );
-
-  return histories
-    .flat()
+  const history = await fetchHistoryByUser(connectedSignature);
+  // console.log(
+  //   `[historique] Historique brut pour ${connectedSignature}:`,
+  //   history,
+  // );
+  return history
     .filter(
       (entry) =>
+        entry.status === "remis" &&
         typeof entry.updatedBy === "string" &&
         entry.updatedBy.trim() === connectedSignature,
     )

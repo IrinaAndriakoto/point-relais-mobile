@@ -1,7 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
-  fetchTrackedTransactionsHistory,
+  fetchCashpointHistory,
   type TransactionHistoryEntry,
 } from "@/lib/transaction-history";
 import { useFocusEffect } from "@react-navigation/native";
@@ -29,7 +29,7 @@ export default function HistoriqueScreen() {
     }
 
     try {
-      const history = await fetchTrackedTransactionsHistory();
+      const history = await fetchCashpointHistory();
       setEntries(history);
       setError(null);
     } catch (err) {
@@ -80,7 +80,7 @@ export default function HistoriqueScreen() {
             Aucun scan historisé
           </ThemedText>
           <ThemedText style={styles.helperText}>
-            Les transactions livrées apparaitront ici.
+            Aucun historique avec le statut remis n&apos;est disponible pour ce cashpoint.
           </ThemedText>
         </View>
       );
@@ -117,14 +117,14 @@ export default function HistoriqueScreen() {
         }
       >
         <ThemedView style={styles.historiqueContainer}>
-          <ThemedText type="title" style={styles.heading}>
-            Historique de scans
-          </ThemedText>
-          <ThemedText style={styles.subtitle}>
-            Les scans de transactions livrés sont historisés ici pour vous permettre de suivre vos activités récentes.
-          </ThemedText>
-          {renderContent()}
-        </ThemedView>
+        <ThemedText type="title" style={styles.heading}>
+          Historique de scans
+        </ThemedText>
+        <ThemedText style={styles.subtitle}>
+          Toutes les lignes en base avec le statut remis pour le cashpoint connecté sont affichées ici.
+        </ThemedText>
+        {renderContent()}
+      </ThemedView>
       </ScrollView>
     </SafeAreaView>
   );
