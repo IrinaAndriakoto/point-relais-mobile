@@ -1,97 +1,80 @@
+import {
+  createTransactionHistory,
+  getConnectedCashpointSignature,
+} from "@/lib/transaction-history";
 import CryptoJS from "crypto-js";
 import "react-native-get-random-values";
-import { createTransactionHistory } from "@/lib/transaction-history";
 
-// ═══════════════════════════════════════════════════════
-// Clé de chiffrement — à adapter selon ton backend
-// ═══════════════════════════════════════════════════════
 const SECRET_KEY = "ARO2025MADA2026!";
 
-/**
- * Déchiffre un contenu crypté en AES et retourne le texte clair.
- * @param encryptedContent - Le contenu crypté du QR code
- * @returns Le texte déchiffré (ex: l'idInterne)
- */
+type DeliveryResponse = {
+  signatureCashpoint?: string;
+  [key: string]: unknown;
+};
+
 export function decryptQRContent(encryptedContent: string): string {
-  console.log("[crypto] Tentative de décryptage:", {
+  console.log("[crypto] Tentative de decryptage:", {
     contenuLongueur: encryptedContent.length,
     contenu: encryptedContent.substring(0, 90),
   });
 
   if (!encryptedContent) {
-    throw new Error("Contenu encrypté vide");
+    throw new Error("Contenu encrypte vide");
   }
 
   try {
-    // Créer la clé à partir du texte
     const key = CryptoJS.enc.Utf8.parse(SECRET_KEY);
 
-    // Déchiffrer avec AES/ECB/PKCS7
-    const decrypted = CryptoJS.AES.decrypt(
-      encryptedContent, // contenu base64 chiffré
-      key,
-      {
-        mode: CryptoJS.mode.ECB,
-        padding: CryptoJS.pad.Pkcs7, // PKCS5 == PKCS7 pour AES
-      },
-    );
+    const decrypted = CryptoJS.AES.decrypt(encryptedContent, key, {
+      mode: CryptoJS.mode.ECB,
+      padding: CryptoJS.pad.Pkcs7,
+    });
 
     const result = decrypted.toString(CryptoJS.enc.Utf8);
 
-    console.log("[crypto] Décryptage réussi:", {
+    console.log("[crypto] Decryptage reussi:", {
       resultat: result,
       longueur: result.length,
     });
 
     if (!result || result.length === 0) {
-      throw new Error("Résultat vide — clé incorrecte ou contenu corrompu");
+      throw new Error("Resultat vide: cle incorrecte ou contenu corrompu");
     }
 
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur inconnue";
-    console.error("[crypto] Erreur décryptage:", message);
-    throw new Error(`Échec du décryptage AES/ECB : ${message}`);
+    console.error("[crypto] Erreur decryptage:", message);
+    throw new Error(`Echec du decryptage AES/ECB: ${message}`);
   }
 }
 
-// ═══════════════════════════════════════════════════════
-//  Fonctions backend — à implémenter selon ton API
-// ═══════════════════════════════════════════════════════
-
-/**
- * @param decryptedId - Le contenu déchiffré complet
- * @returns Le idInterne (première partie avant le |)
- */
 export function extractIdInterne(decryptedId: string): string {
   const parts = decryptedId.split("|");
+
   if (parts.length === 0) {
     throw new Error("Format de decryptedId invalide");
   }
+
   const idInterne = parts[0].trim();
+
+  if (!idInterne) {
+    throw new Error("idInterne vide dans le QR dechiffre");
+  }
+
   console.log("[crypto] ID interne extrait:", {
     decryptedIdComplet: decryptedId,
     idInterne,
   });
+
   return idInterne;
 }
 
-/**
- * Envoie la livraison au backend avec le idInterne et le statut
- * @param decryptedId - Le contenu déchiffré complet (sera extrait pour obtenir le idInterne)
- * @param status - Le statut à mettre à jour (ex: "remis")
- */
 export async function livrer(
   decryptedId: string,
   status: string = "remis",
-): Promise<boolean> {
+): Promise<DeliveryResponse> {
   const idInterne = extractIdInterne(decryptedId);
-
-  // Configuration de l'API selon l'environnement
-  // - Sur émulateur Android: 10.0.2.2 (pointe vers le host)
-  // - Sur iOS Simulator: localhost
-  // - Sur téléphone physique: IP du PC (ex: 192.168.x.x)
-  // - Variable d'environnement: process.env.EXPO_PUBLIC_API_URL
   const API_URL = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
 
   if (!API_URL) {
@@ -100,7 +83,9 @@ export async function livrer(
     );
   }
 
-  const endpoint = `${API_URL}/${idInterne}/livrerQRCode?status=${status}`;
+  const endpoint = `${API_URL}/${encodeURIComponent(idInterne)}/updateDispatch?status=${encodeURIComponent(
+    status,
+  )}`;
 
   try {
     console.log("[livrer] Requete backend:", {
@@ -123,34 +108,30 @@ export async function livrer(
       throw new Error(`Erreur backend (${res.status}): ${errorMsg}`);
     }
 
-    const data = await res.json();
-    console.log("[livrer] Succès:", data);
-    return true;
-  } catch (error: any) {
-      let detailedMessage = "Erreur inconnue";
+    const data = (await res.json()) as DeliveryResponse;
+    console.log("[livrer] Succes:", data);
+    return data;
+  } catch (error) {
+    const detailedMessage =
+      error instanceof Error ? error.message : "Erreur inconnue";
 
-      if (error instanceof Error) {
-        detailedMessage = error.message;
-      }
+    const debugInfo = {
+      message: detailedMessage,
+      endpoint,
+      apiUrl: API_URL,
+      idInterne,
+      status,
+    };
 
-      // Ajout d'infos utiles
-      const debugInfo = {
-        message: detailedMessage,
-        endpoint,
-        apiUrl: API_URL,
-        idInterne,
-        status,
-      };
+    console.error("[livrer] ERREUR DETAILLEE:", debugInfo);
 
-      console.error("[livrer] ERREUR DETAILLEE:", debugInfo);
-
-      throw new Error(
-        `Livraison échouée\n\n` +
+    throw new Error(
+      `Livraison echouee\n\n` +
         `Message: ${detailedMessage}\n` +
         `Endpoint: ${endpoint}\n` +
-        `API_URL: ${API_URL}`
-      );
-    }
+        `API_URL: ${API_URL}`,
+    );
+  }
 }
 
 export async function livrerEtHistoriser(
@@ -158,17 +139,30 @@ export async function livrerEtHistoriser(
   status: string = "remis",
 ): Promise<{ historyCreated: boolean }> {
   const idInterne = extractIdInterne(decryptedId);
-
   await livrer(decryptedId, status);
+  const signatureCashpoint =
+    (await getConnectedCashpointSignature())?.trim() ?? "";
 
   try {
-    await createTransactionHistory(idInterne, status);
+    if (!signatureCashpoint) {
+      throw new Error(
+        "signatureCashpoint absente des donnees du compte connecte.",
+      );
+    }
+
+    await createTransactionHistory({
+      idInterne,
+      status,
+      updatedBy: signatureCashpoint,
+    });
+
     return { historyCreated: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur inconnue";
     console.error("[historique] Creation echouee:", {
       idInterne,
       status,
+      signatureCashpoint,
       message,
       errorFull: error,
     });

@@ -1,10 +1,27 @@
-const trackedTransactionIds = new Set<number>();
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
+
+const trackedTransactionIds = new Set<string>();
+const AUTH_STORAGE_KEY = "cashpoint_auth";
+
+type StoredCashpointAuth = {
+  signatureCashpoint?: string;
+  [key: string]: unknown;
+};
 
 export type TransactionHistoryEntry = {
   idHistory: number;
-  idTransaction: number;
+  idInterne?: string;
   status: string;
   changedAt: string;
+  updatedBy?: string;
+};
+
+type CreateTransactionHistoryPayload = {
+  idInterne: string;
+  status: string;
+  updatedBy?: string;
 };
 
 function getTransactionsApiUrl(): string {
@@ -24,36 +41,72 @@ function getApiOrigin(): string {
   return transactionsApiUrl.replace(/\/api\/v1\/transactions$/i, "");
 }
 
-function parseTransactionId(idInterne: string): number {
-  const parsed = Number.parseInt(idInterne, 10);
+function normalizeIdInterne(idInterne: string): string {
+  const normalized = idInterne.trim();
 
-  if (Number.isNaN(parsed)) {
-    throw new Error(
-      `idTransaction invalide: "${idInterne}". Le backend attend un entier.`,
-    );
+  if (!normalized) {
+    throw new Error("idInterne invalide: la valeur est vide.");
   }
 
-  return parsed;
+  return normalized;
 }
 
-export function trackTransaction(transactionId: number) {
-  trackedTransactionIds.add(transactionId);
+async function readStoredAuth(): Promise<StoredCashpointAuth | null> {
+  const rawAuth =
+    Platform.OS === "web"
+      ? await AsyncStorage.getItem(AUTH_STORAGE_KEY)
+      : await SecureStore.getItemAsync(AUTH_STORAGE_KEY);
+
+  if (!rawAuth) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawAuth) as StoredCashpointAuth;
+  } catch (error) {
+    console.error("[historique] Impossible de parser cashpoint_auth:", error);
+    return null;
+  }
 }
 
-export function getTrackedTransactionIds(): number[] {
+export async function getConnectedCashpointSignature(): Promise<string | null> {
+  const auth = await readStoredAuth();
+  const signatureCashpoint = auth?.signatureCashpoint;
+
+  if (typeof signatureCashpoint !== "string") {
+    return null;
+  }
+
+  const normalized = signatureCashpoint.trim();
+  return normalized || null;
+}
+
+export function trackTransaction(idInterne: string) {
+  trackedTransactionIds.add(normalizeIdInterne(idInterne));
+}
+
+export function getTrackedTransactionIds(): string[] {
   return Array.from(trackedTransactionIds.values());
 }
 
-export function getTransactionIdFromIdInterne(idInterne: string): number {
-  return parseTransactionId(idInterne);
-}
-
 export async function createTransactionHistory(
-  idInterne: string,
-  status: string,
+  payload: CreateTransactionHistoryPayload,
 ): Promise<TransactionHistoryEntry> {
-  const idTransaction = parseTransactionId(idInterne);
+  const idInterne = normalizeIdInterne(payload.idInterne);
+  const updatedBy = (
+    payload.updatedBy ?? (await getConnectedCashpointSignature()) ?? ""
+  ).trim();
+
+  if (!updatedBy) {
+    throw new Error("updatedBy manquant pour la creation de l'historique.");
+  }
+
   const endpoint = `${getApiOrigin()}/api/transaction-history`;
+  const requestBody = {
+    idInterne,
+    status: payload.status,
+    updatedBy,
+  };
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -61,10 +114,7 @@ export async function createTransactionHistory(
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({
-      idTransaction,
-      status,
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
@@ -73,30 +123,31 @@ export async function createTransactionHistory(
     console.error("[historique] ERREUR BACKEND:", {
       status: response.status,
       endpoint,
-      body: {
-        idTransaction,
-        status,
-      },
+      body: requestBody,
       response: errorText,
     });
 
     throw new Error(
-      `Historique échoué\n\n` +
-      `Status: ${response.status}\n` +
-      `Response: ${errorText}\n` +
-      `Endpoint: ${endpoint}`
+      `Historique echoue\n\n` +
+        `Status: ${response.status}\n` +
+        `Response: ${errorText}\n` +
+        `Endpoint: ${endpoint}`,
     );
   }
 
   const created = (await response.json()) as TransactionHistoryEntry;
-  trackTransaction(idTransaction);
+  trackTransaction(idInterne);
   return created;
 }
 
 export async function fetchHistoryByTransaction(
-  idTransaction: number,
+  idInterne: string,
 ): Promise<TransactionHistoryEntry[]> {
-  const endpoint = `${getApiOrigin()}/api/transaction-history/${idTransaction}`;
+  const normalizedId = normalizeIdInterne(idInterne);
+  const endpoint = `${getApiOrigin()}/api/transaction-history/${encodeURIComponent(
+    normalizedId,
+  )}`;
+
   const response = await fetch(endpoint, {
     headers: {
       Accept: "application/json",
@@ -117,17 +168,23 @@ export async function fetchTrackedTransactionsHistory(): Promise<
   TransactionHistoryEntry[]
 > {
   const trackedIds = getTrackedTransactionIds();
+  const connectedSignature = await getConnectedCashpointSignature();
 
-  if (trackedIds.length === 0) {
+  if (trackedIds.length === 0 || !connectedSignature) {
     return [];
   }
 
   const histories = await Promise.all(
-    trackedIds.map((transactionId) => fetchHistoryByTransaction(transactionId)),
+    trackedIds.map((idInterne) => fetchHistoryByTransaction(idInterne)),
   );
 
   return histories
     .flat()
+    .filter(
+      (entry) =>
+        typeof entry.updatedBy === "string" &&
+        entry.updatedBy.trim() === connectedSignature,
+    )
     .sort(
       (a, b) =>
         new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime(),

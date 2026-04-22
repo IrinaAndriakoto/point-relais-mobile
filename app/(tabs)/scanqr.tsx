@@ -120,7 +120,7 @@ export default function ScanQRScreen() {
 
       Alert.alert(
         "Erreur de livraison",
-        msg // 👉 maintenant tu verras tout
+        msg 
       );
 
       resetScan();

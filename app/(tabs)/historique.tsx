@@ -91,7 +91,7 @@ export default function HistoriqueScreen() {
         {entries.map((entry) => (
           <ThemedView key={entry.idHistory} style={styles.card}>
             <ThemedText type="defaultSemiBold">
-              Transaction #{entry.idTransaction}
+              Transaction #{entry.idTransaction ?? entry.idInterne ?? "-"}
             </ThemedText>
             <ThemedText style={styles.status}>
               Statut: {entry.status}
