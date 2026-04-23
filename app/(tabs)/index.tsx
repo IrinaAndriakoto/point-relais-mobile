@@ -19,7 +19,6 @@ import {
 } from "react-native";
 
 const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
-const IN_DELIVERY_ENDPOINT = `${apiUrl}/getInDelivery`;
 
 type InDeliveryTransaction = {
   id?: string | number;
@@ -45,6 +44,31 @@ export default function HomeScreen() {
     setIsLoadingTransactions(true);
 
     try {
+      // Récupérer le signatureCashpoint depuis le stockage
+      let caissier = "";
+      try {
+        if (Platform.OS === "web") {
+          const authData = await AsyncStorage.getItem("cashpoint_auth");
+          if (authData) {
+            const parsed = JSON.parse(authData);
+            caissier = parsed.signatureCashpoint || "";
+          }
+        } else {
+          const authData = await SecureStore.getItemAsync("cashpoint_auth");
+          if (authData) {
+            const parsed = JSON.parse(authData);
+            caissier = parsed.signatureCashpoint || "";
+          }
+        }
+      } catch (storageError) {
+        console.warn(
+          "Erreur lors de la récupération du caissier:",
+          storageError,
+        );
+      }
+
+      const IN_DELIVERY_ENDPOINT = `${apiUrl}/getInDelivery?caissier=${encodeURIComponent(caissier)}`;
+
       const response = await fetch(IN_DELIVERY_ENDPOINT, {
         headers: {
           Accept: "application/json",
@@ -151,13 +175,10 @@ export default function HomeScreen() {
               ID Interne
             </ThemedText>
             <ThemedText type="defaultSemiBold" style={styles.nameColumn}>
-              Nom
+              Ref Contrat
             </ThemedText>
             <ThemedText type="defaultSemiBold" style={styles.phoneColumn}>
-              Numero
-            </ThemedText>
-            <ThemedText type="defaultSemiBold" style={styles.statusColumn}>
-              Statut
+              Ref Transaction
             </ThemedText>
           </View>
 
@@ -175,13 +196,10 @@ export default function HomeScreen() {
                 {String(transaction.idInterne ?? transaction.id ?? "-")}
               </ThemedText>
               <ThemedText style={styles.nameColumn}>
-                {String(transaction.nom ?? "-")}
+                {String(transaction.refContrat ?? "-")}
               </ThemedText>
               <ThemedText style={styles.phoneColumn}>
-                {String(transaction.numero ?? "-")}
-              </ThemedText>
-              <ThemedText style={styles.statusColumn}>
-                {String(transaction.status ?? "-")}
+                {String(transaction.refTransaction ?? "-")}
               </ThemedText>
             </View>
           ))}
