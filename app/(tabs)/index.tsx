@@ -3,6 +3,7 @@ import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { UpdateStatutEtHistoriser } from "@/lib/crypto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { Link, useRouter } from "expo-router";
@@ -10,6 +11,7 @@ import * as SecureStore from "expo-secure-store";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Platform,
   ScrollView,
@@ -39,6 +41,11 @@ export default function HomeScreen() {
   const [transactionsError, setTransactionsError] = useState<string | null>(
     null,
   );
+  const [selectedTransactionId, setSelectedTransactionId] = useState<
+    string | number | null
+  >(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const loadTransactions = useCallback(async () => {
     setIsLoadingTransactions(true);
@@ -47,19 +54,12 @@ export default function HomeScreen() {
       // Récupérer le signatureCashpoint depuis le stockage
       let caissier = "";
       try {
-        if (Platform.OS === "web") {
-          const authData = await AsyncStorage.getItem("cashpoint_auth");
-          if (authData) {
-            const parsed = JSON.parse(authData);
-            caissier = parsed.signatureCashpoint || "";
-          }
-        } else {
           const authData = await SecureStore.getItemAsync("cashpoint_auth");
           if (authData) {
             const parsed = JSON.parse(authData);
             caissier = parsed.signatureCashpoint || "";
           }
-        }
+        
       } catch (storageError) {
         console.warn(
           "Erreur lors de la récupération du caissier:",
@@ -104,15 +104,46 @@ export default function HomeScreen() {
 
   const handleLogout = async () => {
     try {
-      if (Platform.OS === "web") {
-        await AsyncStorage.removeItem("cashpoint_auth");
-      } else {
         await SecureStore.deleteItemAsync("cashpoint_auth");
-      }
+      
       setShowProfileModal(false);
       router.replace("/login");
     } catch (error) {
       console.error("Logout error:", error);
+    }
+  };
+
+  const handleOpenConfirmModal = (transactionId: string | number) => {
+    setSelectedTransactionId(transactionId);
+    setShowConfirmModal(true);
+  };
+
+  const handleCloseConfirmModal = () => {
+    setShowConfirmModal(false);
+    setSelectedTransactionId(null);
+  };
+
+  const handleConfirmStatusUpdate = async () => {
+    if (!selectedTransactionId) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      await UpdateStatutEtHistoriser(
+        String(selectedTransactionId),
+        "au_cashpoint",
+      );
+      handleCloseConfirmModal();
+      loadTransactions();
+      Alert.alert(
+        "Succès",
+        "Le statut de la transaction a été mis à jour avec succès.",
+      );
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Erreur inconnue";
+      console.error("Erreur de mise à jour du statut:", error);
+      Alert.alert("Erreur", `Impossible de mettre à jour le statut: ${msg}`);
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
@@ -180,6 +211,9 @@ export default function HomeScreen() {
             <ThemedText type="defaultSemiBold" style={styles.phoneColumn}>
               Ref Transaction
             </ThemedText>
+            <ThemedText type="defaultSemiBold" style={styles.statusColumn}>
+              Action
+            </ThemedText>
           </View>
 
           {transactions.map((transaction, index) => (
@@ -201,6 +235,20 @@ export default function HomeScreen() {
               <ThemedText style={styles.phoneColumn}>
                 {String(transaction.refTransaction ?? "-")}
               </ThemedText>
+              <TouchableOpacity
+                style={[styles.actionButton, { borderColor: colors.tint }]}
+                onPress={() =>
+                  handleOpenConfirmModal(
+                    transaction.idInterne ?? transaction.id ?? String(index),
+                  )
+                }
+              >
+                <ThemedText
+                  style={[styles.actionLabel, { color: colors.tint }]}
+                >
+                  Modifier Statut
+                </ThemedText>
+              </TouchableOpacity>
             </View>
           ))}
         </View>
@@ -310,6 +358,56 @@ export default function HomeScreen() {
               >
                 <ThemedText style={styles.closeButtonText}>Fermer</ThemedText>
               </TouchableOpacity>
+            </ThemedView>
+          </ThemedView>
+        </Modal>
+
+        <Modal
+          visible={showConfirmModal}
+          transparent
+          animationType="fade"
+          onRequestClose={handleCloseConfirmModal}
+        >
+          <ThemedView style={styles.modalOverlay}>
+            <ThemedView style={styles.modalContent}>
+              <IconSymbol
+                size={56}
+                name="checkmark.circle.fill"
+                color={colors.tint}
+              />
+              <ThemedText type="title" style={styles.modalTitle}>
+                Confirmer le statut
+              </ThemedText>
+              <ThemedText style={styles.modalQuestion}>
+                Confirmer que l'attestation a bien été livrée au cashpoint et que le statut peut être mis à jour ?
+              </ThemedText>
+              <View style={styles.confirmModalButtons}>
+                <TouchableOpacity
+                  style={[styles.confirmModalButton, styles.cancelButton]}
+                  onPress={handleCloseConfirmModal}
+                  disabled={isUpdatingStatus}
+                >
+                  <ThemedText style={styles.confirmModalButtonText}>
+                    Annuler
+                  </ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.confirmModalButton,
+                    { backgroundColor: colors.tint },
+                  ]}
+                  onPress={handleConfirmStatusUpdate}
+                  disabled={isUpdatingStatus}
+                >
+                  {isUpdatingStatus ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <ThemedText style={styles.confirmModalButtonText}>
+                      Confirmer
+                    </ThemedText>
+                  )}
+                </TouchableOpacity>
+              </View>
             </ThemedView>
           </ThemedView>
         </Modal>
@@ -463,5 +561,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
+  },
+  confirmModalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+    width: "100%",
+  },
+  confirmModalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cancelButton: {
+    backgroundColor: "rgba(150,150,150,0.3)",
+  },
+  confirmModalButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalQuestion: {
+    textAlign: "center",
+    fontSize: 15,
+    fontWeight: "500",
+    marginVertical: 12,
+  },
+  modalTitle: {
+    textAlign: "center",
+    marginVertical: 8,
+  },
+  actionButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderRadius: 8,
+    backgroundColor: "transparent",
   },
 });

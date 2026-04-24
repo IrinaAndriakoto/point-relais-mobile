@@ -70,9 +70,9 @@ export function extractIdInterne(decryptedId: string): string {
   return idInterne;
 }
 
-export async function livrer(
+export async function ChangerStatut(
   decryptedId: string,
-  status: string = "remis",
+  status: string,
 ): Promise<DeliveryResponse> {
   const idInterne = extractIdInterne(decryptedId);
   const API_URL = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
@@ -88,7 +88,7 @@ export async function livrer(
   )}`;
 
   try {
-    console.log("[livrer] Requete backend:", {
+    console.log("[Changement Statut] Requete backend:", {
       apiUrl: API_URL,
       endpoint,
       idInterne,
@@ -109,7 +109,7 @@ export async function livrer(
     }
 
     const data = (await res.json()) as DeliveryResponse;
-    console.log("[livrer] Succes:", data);
+    console.log("[Changement Statut] Succes:", data);
     return data;
   } catch (error) {
     const detailedMessage =
@@ -123,10 +123,10 @@ export async function livrer(
       status,
     };
 
-    console.error("[livrer] ERREUR DETAILLEE:", debugInfo);
+    console.error("[Changement Statut] ERREUR DETAILLEE:", debugInfo);
 
     throw new Error(
-      `Livraison echouee\n\n` +
+      `Changement de statut echoue\n\n` +
         `Message: ${detailedMessage}\n` +
         `Endpoint: ${endpoint}\n` +
         `API_URL: ${API_URL}`,
@@ -134,12 +134,12 @@ export async function livrer(
   }
 }
 
-export async function livrerEtHistoriser(
+export async function UpdateStatutEtHistoriser(
   decryptedId: string,
-  status: string = "remis",
+  status: string,
 ): Promise<{ historyCreated: boolean }> {
   const idInterne = extractIdInterne(decryptedId);
-  await livrer(decryptedId, status);
+  await ChangerStatut(decryptedId, status);
   const signatureCashpoint =
     (await getConnectedCashpointSignature())?.trim() ?? "";
 

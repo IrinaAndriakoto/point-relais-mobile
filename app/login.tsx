@@ -14,13 +14,9 @@ import {
 
 const storeAuthData = async (data: any) => {
   try {
-    if (Platform.OS === "web") {
-      // Sur le web, utiliser AsyncStorage
-      await AsyncStorage.setItem("cashpoint_auth", JSON.stringify(data));
-    } else {
       // Sur iOS/Android, utiliser SecureStore
       await SecureStore.setItemAsync("cashpoint_auth", JSON.stringify(data));
-    }
+    
   } catch (error) {
     console.error("Erreur lors du stockage des données:", error);
     throw error;

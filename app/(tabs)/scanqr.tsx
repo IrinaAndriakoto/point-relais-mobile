@@ -3,7 +3,7 @@ import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { decryptQRContent, livrerEtHistoriser } from "@/lib/crypto";
+import { decryptQRContent, UpdateStatutEtHistoriser } from "@/lib/crypto";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -102,7 +102,7 @@ export default function ScanQRScreen() {
     setResult({ status: "delivering", decryptedId });
 
     try {
-      const { historyCreated } = await livrerEtHistoriser(decryptedId, "remis");
+      const { historyCreated } = await UpdateStatutEtHistoriser(decryptedId, "remis");
       if (!isMountedRef.current) return;
       setResult({ status: "delivered", decryptedId });
       if (!historyCreated) {

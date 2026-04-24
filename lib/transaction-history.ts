@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
@@ -51,10 +50,7 @@ function normalizeIdInterne(idInterne: string): string {
 }
 
 async function readStoredAuth(): Promise<StoredCashpointAuth | null> {
-  const rawAuth =
-    Platform.OS === "web"
-      ? await AsyncStorage.getItem(AUTH_STORAGE_KEY)
-      : await SecureStore.getItemAsync(AUTH_STORAGE_KEY);
+  const rawAuth = await SecureStore.getItemAsync(AUTH_STORAGE_KEY);
 
   if (!rawAuth) {
     return null;
